@@ -1513,6 +1513,20 @@ impl<'a, const ROW: usize, const COL: usize, const NUM_LAYER: usize, const NUM_E
     async fn process_basic(&mut self, key: KeyCode, event: KeyboardEvent) {
         if event.pressed {
             self.register_key(key, event);
+
+            // Universal Symbols: mirror an F13–F24 trigger onto the Vial raw-HID channel so
+            // the host can inject the Unicode even under macOS Secure Input (which blocks the
+            // CGEvent tap but not HID). Additive — the normal F-key report is still sent below;
+            // the host dedups the overlap. Non-consuming modifiers (held|with) on purpose:
+            // `resolve_modifiers` consumes one-shot modifiers and must not be called here.
+            #[cfg(feature = "host")]
+            if key >= KeyCode::F13 && key <= KeyCode::F24 {
+                let mut report = crate::descriptor::ViaReport::default();
+                report.input_data[0] = 0xEC; // SYMBOL_EVENT_MAGIC
+                report.input_data[1] = key as u8; // 0x68..0x73
+                report.input_data[2] = (self.held_modifiers | self.with_modifiers).into_bits();
+                let _ = crate::channel::SYMBOL_REPORT_CHANNEL.try_send(report);
+            }
         } else {
             self.unregister_key(key, event);
         }

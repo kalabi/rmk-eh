@@ -62,6 +62,11 @@ pub static KEY_EVENT_CHANNEL: Channel<RawMutex, KeyboardEvent, EVENT_CHANNEL_SIZ
 pub static EVENT_CHANNEL: Channel<RawMutex, Event, EVENT_CHANNEL_SIZE> = Channel::new();
 /// Channel for keyboard report from input processors to hid writer/reader
 pub static KEYBOARD_REPORT_CHANNEL: Channel<RawMutex, Report, REPORT_CHANNEL_SIZE> = Channel::new();
+/// Unsolicited board→host Vial reports for "Universal Symbols": an F13–F24 trigger is
+/// mirrored here so the host can inject the Unicode even under macOS Secure Input (which
+/// blocks the CGEvent tap but not HID). Drained by VialService → written to the 0xFF60 endpoint.
+#[cfg(feature = "host")]
+pub static SYMBOL_REPORT_CHANNEL: Channel<RawMutex, crate::descriptor::ViaReport, 8> = Channel::new();
 /// Channel for controller events
 #[cfg(feature = "controller")]
 pub static CONTROLLER_CHANNEL: PubSubChannel<

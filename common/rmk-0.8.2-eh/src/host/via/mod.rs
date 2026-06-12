@@ -92,12 +92,26 @@ impl<
     }
 
     pub(crate) async fn process(&mut self) -> Result<(), HidError> {
-        let mut via_report = self.reader_writer.read_report().await?;
+        use embassy_futures::select::{Either, select};
 
-        self.process_via_packet(&mut via_report, self.keymap).await;
-
-        // Send via report back after processing
-        self.reader_writer.write_report(via_report).await?;
+        // Serve a host command, or — when one is queued — emit an unsolicited symbol report
+        // (Universal Symbols over raw HID; survives macOS Secure Input). Same 0xFF60 endpoint.
+        match select(
+            self.reader_writer.read_report(),
+            crate::channel::SYMBOL_REPORT_CHANNEL.receive(),
+        )
+        .await
+        {
+            Either::First(res) => {
+                let mut via_report = res?;
+                self.process_via_packet(&mut via_report, self.keymap).await;
+                // Send via report back after processing
+                self.reader_writer.write_report(via_report).await?;
+            }
+            Either::Second(report) => {
+                self.reader_writer.write_report(report).await?;
+            }
+        }
 
         Ok(())
     }
